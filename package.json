@@ -1,0 +1,23 @@
+{
+    "name": "bridgebot",
+    "private": true,
+    "type": "module",
+    "version": "1.0.0",
+    "description": "",
+    "main": "dist/index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "kelly <cursors.owo.uwu@gmail.com>",
+    "license": "MIT",
+    "dependencies": {
+        "discord.js": "^14.7.1",
+        "dotenv": "^16.0.3",
+        "mineflayer": "^4.6.0",
+        "node-fetch": "^3.3.0"
+    },
+    "devDependencies": {
+        "typescript": "^4.9.4"
+    }
+}
