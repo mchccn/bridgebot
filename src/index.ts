@@ -103,8 +103,11 @@ function discordMessageAsPlainText(message: Message) {
     return chunks;
 }
 
+const escapeMarkdown = (text: string) =>
+    text.replace(/\\(\*|_|`|~|\\)/g, "$1").replace(/(\*|_|`|~|\\)/g, "\\$1");
+
 function plainTextToDiscord(message: string) {
-    return message.replace(MENTION_REGEX, (_, username) => {
+    return escapeMarkdown(message).replace(MENTION_REGEX, (_, username) => {
         const user = client.users.cache.find(
             (user) =>
                 user.username
@@ -129,7 +132,7 @@ bot.on("message", async (message) => {
         const [, name, lj] = Array.from(raw.match(GUILD_UPDATE) ?? []);
 
         if (name && lj) {
-            await channel.send(`**${name}** ${lj}.`);
+            await channel.send(`**${escapeMarkdown(name)}** ${lj}.`);
         }
     }
 
@@ -138,7 +141,9 @@ bot.on("message", async (message) => {
 
         if (rank && name && chat && name !== process.env.USERNAME!) {
             await channel.send(
-                `**${rank}${name}**: ${plainTextToDiscord(chat)}`
+                `**${rank}${escapeMarkdown(name)}**: ${plainTextToDiscord(
+                    chat
+                )}`
             );
 
             // const wh = await channel.createWebhook({
