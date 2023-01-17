@@ -1,4 +1,10 @@
-import { Client, Message, MessageMentions, TextChannel } from "discord.js";
+import {
+    Client,
+    Collection,
+    Message,
+    MessageMentions,
+    TextChannel,
+} from "discord.js";
 import "dotenv/config";
 import i from "imgur";
 import { createBot } from "mineflayer";
@@ -39,10 +45,6 @@ bot.on("spawn", async () => {
 
     bot.chat("/chat g");
 });
-
-const CHAT_REGEX = /^Guild > (\[.*]\s*)?([\w]{2,17}).*?(\[.{1,15}])?: (.*)$/;
-const GUILD_UPDATE = /^Guild > ([\w]{2,17}) (left|joined)\.$/;
-const MENTION_REGEX = /@([\S]+)/g;
 
 function discordMessageAsPlainText(message: Message) {
     const raw = message.content;
@@ -107,19 +109,34 @@ const escapeMarkdown = (text: string) =>
     text.replace(/\\(\*|_|`|~|\\)/g, "$1").replace(/(\*|_|`|~|\\)/g, "\\$1");
 
 function plainTextToDiscord(message: string) {
-    return escapeMarkdown(message).replace(MENTION_REGEX, (_, username) => {
-        const user = client.users.cache.find(
-            (user) =>
-                user.username
-                    .toLowerCase()
-                    .localeCompare(username.toLowerCase()) === 0
-        );
+    return escapeMarkdown(
+        message.replace(MENTION_REGEX, (_, username) => {
+            const user = client.users.cache.find(
+                (user) =>
+                    user.username
+                        .toLowerCase()
+                        .localeCompare(username.toLowerCase()) === 0
+            );
 
-        if (user) return `<@${user.id}>`;
+            if (user) return `<@${user.id}>`;
 
-        return _;
-    });
+            return _;
+        })
+    );
 }
+
+const CHAT_REGEX = /^Guild > (\[.*]\s*)?([\w]{2,17}).*?(\[.{1,15}])?: (.*)$/;
+const GUILD_UPDATE = /^Guild > ([\w]{2,17}).*? (joined|left)\.$/;
+const ROLE_UPDATE =
+    /^(\[.*]\s*)?([\w]{2,17}).*? was (promoted|demoted) from (.*) to (.*)$/;
+const MEMBER_JOIN = /^(\[.*]\s*)?([\w]{2,17}).*? joined the guild!$/;
+const MEMBER_LEAVE = /^(\[.*]\s*)?(\w{2,17}).*? left the guild!$/;
+const MEMBER_KICKED =
+    /^(\[.*]\s*)?(\w{2,17}).*? was kicked from the guild by (\[.*]\s*)?(\w{2,17}).*?!$/;
+const LEVEL_UP = /^\s{19}The Guild has reached Level (\d*)!$/;
+const QUEST_COMPLETE = /^\s{17}GUILD QUEST COMPLETED!$/;
+const TIER_COMPLETE = /^\s{17}GUILD QUEST TIER (\d*) COMPLETED!$/;
+const MENTION_REGEX = /@(\S+)/g;
 
 bot.on("message", async (message) => {
     if (message.extra?.length === 100) return;
@@ -127,6 +144,90 @@ bot.on("message", async (message) => {
     const raw = message.toString();
 
     if (raw === "Woah there, slow down!") await bot.waitForTicks(200);
+
+    notifications.forEach((exec, condition) => {
+        if (condition(raw)) {
+            exec();
+
+            notifications.delete(condition);
+        }
+    });
+
+    {
+        const [, level] = Array.from(raw.match(LEVEL_UP) ?? []);
+
+        if (level) {
+            await channel.send(`**The guild has reached level ${level}!**`);
+        }
+    }
+
+    {
+        if (QUEST_COMPLETE.test(raw)) {
+            await channel.send(`**Guild quest completed!**`);
+        }
+    }
+
+    {
+        const [, tier] = Array.from(raw.match(TIER_COMPLETE) ?? []);
+
+        if (tier) {
+            await channel.send(`**Guild quest tier ${tier} completed!**`);
+        }
+    }
+
+    {
+        const [, rank = "", name] = Array.from(raw.match(MEMBER_JOIN) ?? []);
+
+        if (typeof rank === "string" && name) {
+            await channel.send(
+                `**${rank}${escapeMarkdown(name)}** has joined the guild!`
+            );
+        }
+    }
+
+    {
+        const [, rank = "", name] = Array.from(raw.match(MEMBER_LEAVE) ?? []);
+
+        if (typeof rank === "string" && name) {
+            await channel.send(
+                `**${rank}${escapeMarkdown(name)}** has left the guild!`
+            );
+        }
+    }
+
+    {
+        const [, victimrank = "", victimname, kickerrank, kickername] =
+            Array.from(raw.match(MEMBER_KICKED) ?? []);
+
+        if (
+            typeof victimrank === "string" &&
+            victimname &&
+            typeof kickerrank === "string" &&
+            kickername
+        ) {
+            await channel.send(
+                `**${victimrank}${escapeMarkdown(
+                    victimname
+                )}** was kicked from the guild by **${kickerrank}${escapeMarkdown(
+                    kickername
+                )}**!`
+            );
+        }
+    }
+
+    {
+        const [, rank = "", name, pd, from, to] = Array.from(
+            raw.match(ROLE_UPDATE) ?? []
+        );
+
+        if (typeof rank === "string" && name && pd && from && to) {
+            await channel.send(
+                `**${rank}${escapeMarkdown(
+                    name
+                )}** was ${pd} from *${from}* to *${to}*.`
+            );
+        }
+    }
 
     {
         const [, name, lj] = Array.from(raw.match(GUILD_UPDATE) ?? []);
@@ -137,29 +238,29 @@ bot.on("message", async (message) => {
     }
 
     {
-        const [, rank, name, , chat] = Array.from(raw.match(CHAT_REGEX) ?? []);
+        const [, rank = "", name, , chat] = Array.from(
+            raw.match(CHAT_REGEX) ?? []
+        );
 
-        if (rank && name && chat && name !== process.env.USERNAME!) {
+        if (
+            typeof rank === "string" &&
+            name &&
+            chat &&
+            name !== process.env.USERNAME!
+        ) {
             await channel.send(
                 `**${rank}${escapeMarkdown(name)}**: ${plainTextToDiscord(
                     chat
                 )}`
             );
-
-            // const wh = await channel.createWebhook({
-            //     name,
-            //     avatar: `https://mc-heads.net/head/${name}`,
-            // });
-
-            // await wh.send(chat);
-
-            // await wh.delete();
         }
     }
 });
 
 //@ts-ignore
 const imgur = new i.ImgurClient({ clientId: process.env.IMGUR_ID! }) as i;
+
+const notifications = new Collection<(msg: string) => boolean, () => void>();
 
 client.on("messageCreate", async (message) => {
     if (
@@ -168,6 +269,45 @@ client.on("messageCreate", async (message) => {
         message.channel.id !== process.env.CHANNEL_ID!
     )
         return;
+
+    message.content = message.content.trim();
+
+    if (message.content.startsWith("$")) {
+        const [command, ...args] = message.content.slice(1).split(/\s+/);
+
+        if (command === "pingonjoin") {
+            const ign = args[0].toLowerCase();
+
+            let n = args[0];
+
+            notifications.set(
+                (raw) => {
+                    const [, name, lj] = Array.from(
+                        raw.match(GUILD_UPDATE) ?? []
+                    );
+
+                    const matches =
+                        typeof lj === "string" &&
+                        typeof name === "string" &&
+                        lj === "joined" &&
+                        name.toLowerCase() === ign;
+
+                    if (matches) n = name;
+
+                    return matches;
+                },
+                () => {
+                    channel.send(`<@${message.author.id}> ${n} is now online.`);
+                }
+            );
+
+            await channel.send(
+                `:white_check_mark: You will now be notified when they join.`
+            );
+        }
+
+        return;
+    }
 
     if (message.attachments.size) {
         const links = await Promise.all(
