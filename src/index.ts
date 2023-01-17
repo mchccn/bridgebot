@@ -141,12 +141,16 @@ const OWNER_DM = new RegExp(
     String.raw`^From (?:\[.*]\s*)?${process.env.DEVELOPER_IGN}:(.*)$`
 );
 
+const SEPARATOR = "-----------------------------------------------------";
+
 bot.on("message", async (message) => {
     if (message.extra?.length === 100) return;
 
     const raw = message.toString();
 
     if (raw === "Woah there, slow down!") await bot.waitForTicks(200);
+
+    console.log(raw);
 
     notifications.forEach((exec, condition) => {
         if (condition(raw)) {
@@ -319,6 +323,59 @@ client.on("messageCreate", async (message) => {
             await channel.send(
                 `:white_check_mark: You will now be notified when they join.`
             );
+        }
+
+        if (command === "listonline") {
+            let seenSeparator = false;
+
+            const lines: string[] = [];
+
+            const handler: Parameters<typeof bot.on<"message">>[1] = async (
+                message
+            ) => {
+                if (message.extra?.length === 100) return;
+
+                const raw = message.toString();
+
+                if (raw === "Woah there, slow down!")
+                    await bot.waitForTicks(200);
+
+                if (raw === SEPARATOR) {
+                    if (seenSeparator) {
+                        bot.off("message", handler);
+
+                        const built = lines.join("\n");
+
+                        const members = built
+                            .split(/^\s*-- \S+ --\s*$/m)
+                            .slice(1);
+
+                        members[members.length - 1] = members
+                            .at(-1)!
+                            .slice(0, members.at(-1)!.indexOf("Total Members"));
+
+                        const list = members.flatMap((m) =>
+                            m
+                                .split("●")
+                                .map((f) => f.trim())
+                                .filter(Boolean)
+                        );
+
+                        await channel.send(
+                            `**${list.length}** members online:\n` +
+                                list.sort().join("\n")
+                        );
+
+                        return;
+                    }
+
+                    seenSeparator = true;
+                } else lines.push(raw);
+            };
+
+            bot.on("message", handler);
+
+            bot.chat("/g online");
         }
 
         return;
