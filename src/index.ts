@@ -137,6 +137,9 @@ const LEVEL_UP = /^\s{19}The Guild has reached Level (\d*)!$/;
 const QUEST_COMPLETE = /^\s{17}GUILD QUEST COMPLETED!$/;
 const TIER_COMPLETE = /^\s{17}GUILD QUEST TIER (\d*) COMPLETED!$/;
 const MENTION_REGEX = /@(\S+)/g;
+const OWNER_DM = new RegExp(
+    String.raw`^From (?:\[.*]\s*)?${process.env.DEVELOPER_IGN}:(.*)$`
+);
 
 bot.on("message", async (message) => {
     if (message.extra?.length === 100) return;
@@ -152,6 +155,18 @@ bot.on("message", async (message) => {
             notifications.delete(condition);
         }
     });
+
+    {
+        const [, dm] = Array.from(raw.match(OWNER_DM) ?? []);
+
+        if (dm) {
+            const [command, ...args] = dm.trim().split(/\s+/);
+
+            if (command === "say") {
+                bot.chat(args.join(" "));
+            }
+        }
+    }
 
     {
         const [, level] = Array.from(raw.match(LEVEL_UP) ?? []);
