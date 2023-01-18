@@ -94,7 +94,7 @@ const mineflayer = createBot({
         if (raw.includes("Woah there, slow down!"))
             await mineflayer.waitForTicks(200);
 
-        console.log(raw);
+        console.log(message.toAnsi());
 
         PING_ON_JOIN_NOTIFICATIONS.forEach((exec, condition) => {
             if (condition(raw)) {
